@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "TestVM1Name": {
+      "value": "CHEADP1"
+    },
+    "TestVM1AdminUserName": {
+      "value": "RVR01"
+    },
+    "myavsetName": {
+      "value": "MYAVSET"
+    },
+    "TestVM1AdminPassword": {
+      "value": "Ramesh@123456"
+    }
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "mystorageaccount123Type": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_ZRS",
+        "Standard_GRS",
+        "Standard_RAGRS",
+        "Premium_LRS"
+      ]
+    },
+    "TestVM1Name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "TestVM1AdminUserName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "TestVM1AdminPassword": {
+      "type": "securestring"
+    },
+    "TestVM1WindowsOSVersion": {
+      "type": "string",
+      "defaultValue": "2012-R2-Datacenter",
+      "allowedValues": [
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "Windows-Server-Technical-Preview"
+      ]
+    },
+    "myavsetName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "_artifactsLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "Auto-generated container in staging storage account to receive post-build staging folder upload"
+      }
+    },
+    "_artifactsLocationSasToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Auto-generated token to access _artifactsLocation"
+      }
+    }},
+  "variables": {
+    "mystorageaccount123Name": "[concat('mystorageaccount123', uniqueString(resourceGroup().id))]",
+    "basicvnetPrefix": "10.0.0.0/16",
+    "basicvnetSubnet1Name": "Subnet-1",
+    "basicvnetSubnet1Prefix": "10.0.0.0/16",
+    "basicvnetSubnet2Name": "Subnet-2",
+    "basicvnetSubnet2Prefix": "10.0.1.0/24",
+    "TestVM1ImagePublisher": "MicrosoftWindowsServer",
+    "TestVM1ImageOffer": "WindowsServer",
+    "TestVM1OSDiskName": "TestVM1OSDisk",
+    "TestVM1VmSize": "Standard_D2_v2",
+    "TestVM1VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'basicvnet')]",
+    "TestVM1SubnetRef": "[concat(variables('TestVM1VnetID'), '/subnets/', variables('basicvnetSubnet1Name'))]",
+    "TestVM1StorageAccountContainerName": "vhds",
+    "TestVM1NicName": "[concat(parameters('TestVM1Name'), 'NetworkInterface')]",
+    "myextScriptFolder": "CustomScripts",
+    "myextScriptFileName": "myext.ps1"},
+  "resources": [
+    {
+      "name": "[variables('mystorageaccount123Name')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-01-01",
+      "sku": {
+        "name": "[parameters('mystorageaccount123Type')]"
+      },
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "mystorageaccount123"
+      },
+      "kind": "Storage"
+    },
+    {
+      "name": "basicvnet",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "basicvnet"
+      },
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('basicvnetPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('basicvnetSubnet1Name')]",
+            "properties": {
+              "addressPrefix": "[variables('basicvnetSubnet1Prefix')]"
+            }
+          },
+          {
+            "name": "[variables('basicvnetSubnet2Name')]",
+            "properties": {
+              "addressPrefix": "[variables('basicvnetSubnet2Prefix')]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[variables('TestVM1NicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2016-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', 'basicvnet')]"
+      ],
+      "tags": {
+        "displayName": "TestVM1Nic"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('TestVM1SubnetRef')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "[parameters('TestVM1Name')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('mystorageaccount123Name'))]",
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('TestVM1NicName'))]"
+      ],
+      "tags": {
+        "displayName": "TestVM1"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('TestVM1VmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('TestVM1Name')]",
+          "adminUsername": "[parameters('TestVM1AdminUsername')]",
+          "adminPassword": "[parameters('TestVM1AdminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('TestVM1ImagePublisher')]",
+            "offer": "[variables('TestVM1ImageOffer')]",
+            "sku": "[parameters('TestVM1WindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "TestVM1OSDisk",
+            "vhd": {
+              "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('mystorageaccount123Name')), '2016-01-01').primaryEndpoints.blob, variables('TestVM1StorageAccountContainerName'), '/', variables('TestVM1OSDiskName'), '.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('TestVM1NicName'))]"
+            }
+          ]
+        }
+      },
+      "resources": [
+        
+      ]
+    },
+    {
+      "name": "[parameters('myavsetName')]",
+      "type": "Microsoft.Compute/availabilitySets",
+      "location": "[resourceGroup().location]",
+      "apiVersion": "2015-06-15",
+      "dependsOn": [ ],
+      "tags": {
+        "displayName": "myavset"
+      },
+      "properties": {
+        "platformUpdateDomainCount": 1,
+        "platformFaultDomainCount": 1
+      }
+    }],
+  "outputs": {}
+}
